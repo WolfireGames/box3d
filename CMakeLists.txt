@@ -25,7 +25,9 @@ message(STATUS "CMake system name: ${CMAKE_SYSTEM_NAME}")
 message(STATUS "CMake host system processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
 # static link to make leak checking easier (_crtBreakAlloc)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+if(PROJECT_IS_TOP_LEVEL)
+	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 if (MSVC OR APPLE OR UNIX)
 	option(BOX3D_SANITIZE "Enable sanitizers for some builds" OFF)
