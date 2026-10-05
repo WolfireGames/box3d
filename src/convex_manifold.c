@@ -814,7 +814,68 @@ static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3L
 	// It creates a pecking order to avoid flickering between candidates with similar scores.
 	float bias = 0.95f;
 
-	// Step 1: find extreme point that is touching
+	// Touching points come first. A face with many vertices that meets a plane at an angle (a tilted
+	// cylinder cap) has a few points at or below the surface and many well above it. The steps below
+	// choose by position and area, so the high points could take every slot and leave the deepest
+	// point out, and then nothing pushes it back.
+	int touching = 0;
+	float deepest = FLT_MAX;
+	for ( int index = 0; index < count; ++index )
+	{
+		if ( points[index].separation <= speculativeDistance )
+		{
+			b3LocalManifoldPoint temp = points[touching];
+			points[touching] = points[index];
+			points[index] = temp;
+			deepest = b3MinFloat( deepest, points[touching].separation );
+			touching += 1;
+		}
+	}
+
+	if ( touching == 0 )
+	{
+		manifold->pointCount = 0;
+		return;
+	}
+
+	if ( touching <= 4 )
+	{
+		// Every touching point is kept. The free slots go to the points that will touch soonest.
+		for ( int i = 0; i < touching; ++i )
+		{
+			manifold->points[i] = points[i];
+		}
+
+		manifold->pointCount = touching;
+		while ( manifold->pointCount < 4 )
+		{
+			int nearest = B3_NULL_INDEX;
+			for ( int index = touching; index < count; ++index )
+			{
+				if ( nearest == B3_NULL_INDEX || points[index].separation < bias * points[nearest].separation )
+				{
+					nearest = index;
+				}
+			}
+
+			if ( nearest == B3_NULL_INDEX )
+			{
+				break;
+			}
+
+			manifold->points[manifold->pointCount] = points[nearest];
+			manifold->pointCount += 1;
+			points[nearest] = points[count - 1];
+			count -= 1;
+		}
+
+		return;
+	}
+
+	// More than four touch: reduce among those alone.
+	count = touching;
+
+	// Step 1: find an extreme point among the deepest
 	int bestIndex = B3_NULL_INDEX;
 	float bestScore = -FLT_MAX;
 
@@ -823,11 +884,12 @@ static void b3ReduceManifoldPoints( b3LocalManifold* manifold, int capacity, b3L
 	// b3Vec3 perp2 = b3Cross( perp1, normal );
 	// b3Vec3 searchDirection = -0.4535961214255773f * perp1 + 0.8912073600614354f * perp2;
 	b3Vec3 searchDirection = b3ArbitraryPerp( normal );
+	float deepBand = deepest + B3_LINEAR_SLOP;
 	for ( int index = 0; index < count; ++index )
 	{
 		b3LocalManifoldPoint* pt = points + index;
 
-		if ( pt->separation > speculativeDistance )
+		if ( pt->separation > deepBand )
 		{
 			continue;
 		}
